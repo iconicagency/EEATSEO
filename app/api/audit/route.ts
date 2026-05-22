@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ALL_KEYS } from '@/lib/data'
 
-export const runtime = 'edge'
-
-const PROMPT = (url: string, robotsTxt: string, html: string) => `Bạn là chuyên gia SEO E-E-A-T. Phân tích URL và HTML sau, đánh giá từng tiêu chí kỹ thuật.
-
-URL: ${url}
-robots.txt (đầu): ${robotsTxt.slice(0, 600) || 'N/A'}
-HTML (đầu): ${html.slice(0, 12000) || 'Không fetch được — phân tích dựa trên URL và domain'}
-
-Trả về JSON hợp lệ (chỉ JSON, không markdown, không giải thích):
-{
-  "summary": "nhận xét tổng quan 2-3 câu về trang",
-  "top_issues": ["vấn đề ưu tiên 1", "vấn đề 2", "vấn đề 3"],
-  "top_strengths": ["điểm mạnh 1", "điểm mạnh 2"],
-  "checks": {
-    ${ALL_KEYS.map(k => `"${k}": {"status": "pass|warn|fail", "note": "lý do ngắn gọn"}`).join(',\n    ')}
-  }
-}`
+const ALL_KEYS = [
+  'robots_ai','ssr_content','no_noindex','no_nosnippet','canonical','internal_links',
+  'topic_depth','cross_linking','semantic_chunks','one_idea','heading_structure',
+  'inverted_pyramid','non_promotional','schema_markup','faq_format',
+  'factual_claims','citations','author_credentials','author_schema','date_modified','author_display',
+  'original_research','image_html','alt_text','captions','semantic_media','html_tables',
+  'intent_coverage','local_schema','content_quality',
+]
 
 async function fetchUrl(url: string): Promise<string> {
   try {
@@ -39,14 +29,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu URL hoặc API key' }, { status: 400 })
     }
 
-    if (!apiKey.startsWith('sk-ant-')) {
-      return NextResponse.json({ error: 'API key không hợp lệ (phải bắt đầu bằng sk-ant-)' }, { status: 400 })
-    }
-
     const [html, robotsTxt] = await Promise.all([
       fetchUrl(url),
       fetchUrl(new URL(url).origin + '/robots.txt'),
     ])
+
+    const prompt = `Bạn là chuyên gia SEO E-E-A-T. Phân tích URL và HTML sau, đánh giá từng tiêu chí kỹ thuật.
+
+URL: ${url}
+robots.txt (đầu): ${robotsTxt.slice(0, 600) || 'N/A'}
+HTML (đầu): ${html.slice(0, 12000) || 'Không fetch được — phân tích dựa trên URL và domain'}
+
+Trả về JSON hợp lệ (chỉ JSON, không markdown, không giải thích):
+{
+  "summary": "nhận xét tổng quan 2-3 câu về trang",
+  "top_issues": ["vấn đề ưu tiên 1", "vấn đề 2", "vấn đề 3"],
+  "top_strengths": ["điểm mạnh 1", "điểm mạnh 2"],
+  "checks": {
+    ${ALL_KEYS.map((k: string) => `"${k}": {"status": "pass|warn|fail", "note": "lý do ngắn gọn"}`).join(',\n    ')}
+  }
+}`
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 1500,
-        messages: [{ role: 'user', content: PROMPT(url, robotsTxt, html) }],
+        messages: [{ role: 'user', content: prompt }],
       }),
     })
 
