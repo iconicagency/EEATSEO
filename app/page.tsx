@@ -11,12 +11,12 @@ const STORE_KEY = 'seo_eeat_next_v1'
 const API_KEY_STORE = 'anthropic_api_key'
 
 function useLocalStorage<T>(key: string, init: T) {
-  const [val, setVal] = useState<T>(init)
-  useEffect(() => {
-    try { const s = localStorage.getItem(key); if (s) setVal(JSON.parse(s)) } catch {}
-  }, [key])
+  const [val, setValRaw] = useState<T>(() => {
+    if (typeof window === 'undefined') return init
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : init } catch { return init }
+  })
   const set = useCallback((v: T | ((prev: T) => T)) => {
-    setVal(prev => {
+    setValRaw(prev => {
       const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v
       try { localStorage.setItem(key, JSON.stringify(next)) } catch {}
       return next
