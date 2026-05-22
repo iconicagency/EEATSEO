@@ -1,0 +1,2 @@
+# EEATSEO
+Checlist EEAT SEO
