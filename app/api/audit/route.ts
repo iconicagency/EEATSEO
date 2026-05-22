@@ -10,15 +10,25 @@ const ALL_KEYS = [
 ]
 
 async function fetchUrl(url: string): Promise<string> {
-  try {
-    const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(8000),
-    })
-    const d = await r.json()
-    return d.contents || ''
-  } catch {
-    return ''
+  const proxies = [
+    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  ]
+  for (const proxy of proxies) {
+    try {
+      const r = await fetch(proxy, { signal: AbortSignal.timeout(8000) })
+      if (!r.ok) continue
+      if (proxy.includes('allorigins')) {
+        const d = await r.json()
+        if (d.contents && d.contents.length > 100) return d.contents
+      } else {
+        const text = await r.text()
+        if (text && text.length > 100) return text
+      }
+    } catch { continue }
   }
+  return ''
 }
 
 export async function POST(req: NextRequest) {
@@ -27,6 +37,10 @@ export async function POST(req: NextRequest) {
 
     if (!url || !apiKey) {
       return NextResponse.json({ error: 'Thiếu URL hoặc API key' }, { status: 400 })
+    }
+
+    if (!apiKey.startsWith('sk-ant-')) {
+      return NextResponse.json({ error: 'API key không hợp lệ (phải bắt đầu bằng sk-ant-)' }, { status: 400 })
     }
 
     const [html, robotsTxt] = await Promise.all([
@@ -38,7 +52,7 @@ export async function POST(req: NextRequest) {
 
 URL: ${url}
 robots.txt (đầu): ${robotsTxt.slice(0, 600) || 'N/A'}
-HTML (đầu): ${html.slice(0, 12000) || 'Không fetch được — phân tích dựa trên URL và domain'}
+HTML (đầu): ${html.slice(0, 12000) || 'Không fetch được — hãy phân tích dựa trên URL và domain, đưa ra đánh giá hợp lý thay vì fail hết'}
 
 Trả về JSON hợp lệ (chỉ JSON, không markdown, không giải thích):
 {
